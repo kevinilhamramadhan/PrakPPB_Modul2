@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -42,10 +43,11 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun AnimeApp() {
     val navController = rememberNavController()
-    val items = listOf(Screen.Anime, Screen.About)
+    val items = listOf(Screen.Anime, Screen.Character, Screen.About)
 
-    // Shared ViewModel untuk semua screen
-    val sharedViewModel: AnimeViewModel = viewModel()
+    // Shared ViewModels
+    val animeViewModel: AnimeViewModel = viewModel()
+    val characterViewModel: CharacterViewModel = viewModel()
 
     Scaffold(
         bottomBar = {
@@ -53,13 +55,16 @@ fun AnimeApp() {
             val currentRoute = currentBackStack?.destination?.route
 
             // Hanya tampilkan bottom bar jika bukan di halaman detail
-            if (currentRoute != null && !currentRoute.startsWith("anime_detail")) {
+            if (currentRoute != null &&
+                !currentRoute.startsWith("anime_detail") &&
+                !currentRoute.startsWith("character_detail")) {
                 NavigationBar {
                     items.forEach { screen ->
                         NavigationBarItem(
                             icon = {
                                 when (screen) {
                                     Screen.Anime -> Icon(Icons.Default.Movie, contentDescription = "Anime")
+                                    Screen.Character -> Icon(Icons.Default.Person, contentDescription = "Karakter")
                                     Screen.About -> Icon(Icons.Default.Info, contentDescription = "About")
                                     else -> {}
                                 }
@@ -86,17 +91,32 @@ fun AnimeApp() {
             startDestination = Screen.Anime.route,
             modifier = Modifier.padding(innerPadding)
         ) {
+            // Anime List
             composable(Screen.Anime.route) {
                 AnimeListScreen(
                     onAnimeClick = { animeId ->
                         navController.navigate(Screen.AnimeDetail.createRoute(animeId))
                     },
-                    viewModel = sharedViewModel
+                    viewModel = animeViewModel
                 )
             }
+
+            // Character List
+            composable(Screen.Character.route) {
+                CharacterListScreen(
+                    onCharacterClick = { characterId ->
+                        navController.navigate(Screen.CharacterDetail.createRoute(characterId))
+                    },
+                    viewModel = characterViewModel
+                )
+            }
+
+            // About
             composable(Screen.About.route) {
                 AboutScreen()
             }
+
+            // Anime Detail
             composable(
                 route = Screen.AnimeDetail.route,
                 arguments = listOf(
@@ -109,7 +129,24 @@ fun AnimeApp() {
                 AnimeDetailScreen(
                     animeId = animeId,
                     onBackClick = { navController.navigateUp() },
-                    viewModel = sharedViewModel
+                    viewModel = animeViewModel
+                )
+            }
+
+            // Character Detail
+            composable(
+                route = Screen.CharacterDetail.route,
+                arguments = listOf(
+                    navArgument("characterId") {
+                        type = NavType.IntType
+                    }
+                )
+            ) { backStackEntry ->
+                val characterId = backStackEntry.arguments?.getInt("characterId") ?: 0
+                CharacterDetailScreen(
+                    characterId = characterId,
+                    onBackClick = { navController.navigateUp() },
+                    viewModel = characterViewModel
                 )
             }
         }
