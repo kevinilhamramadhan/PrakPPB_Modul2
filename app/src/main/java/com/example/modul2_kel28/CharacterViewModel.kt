@@ -16,6 +16,12 @@ class CharacterViewModel : ViewModel() {
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
 
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery
+
+    private val _isAscending = MutableStateFlow(true)
+    val isAscending: StateFlow<Boolean> = _isAscending
+
     fun fetchTopCharacters() {
         viewModelScope.launch {
             try {
@@ -28,5 +34,33 @@ class CharacterViewModel : ViewModel() {
                 _isLoading.value = false
             }
         }
+    }
+
+    fun updateSearchQuery(query: String) {
+        _searchQuery.value = query
+    }
+
+    fun toggleSort() {
+        _isAscending.value = !_isAscending.value
+    }
+
+    fun getFilteredAndSortedCharacterList(): List<Character> {
+        var result = _characterList.value
+
+        // Filter berdasarkan search query
+        if (_searchQuery.value.isNotEmpty()) {
+            result = result.filter {
+                it.name.contains(_searchQuery.value, ignoreCase = true)
+            }
+        }
+
+        // Sort berdasarkan nama
+        result = if (_isAscending.value) {
+            result.sortedBy { it.name }
+        } else {
+            result.sortedByDescending { it.name }
+        }
+
+        return result
     }
 }
