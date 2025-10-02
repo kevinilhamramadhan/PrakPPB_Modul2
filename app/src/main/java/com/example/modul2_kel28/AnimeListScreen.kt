@@ -4,9 +4,11 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SortByAlpha
 import androidx.compose.material3.*
@@ -26,8 +28,11 @@ fun AnimeListScreen(
     viewModel: AnimeViewModel
 ) {
     val animeList by viewModel.animeList.collectAsState()
+    val genreList by viewModel.genreList.collectAsState()
+    val selectedGenre by viewModel.selectedGenre.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val isAscending by viewModel.isAscending.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
 
     LaunchedEffect(Unit) {
         if (animeList.isEmpty()) {
@@ -88,7 +93,102 @@ fun AnimeListScreen(
             }
         }
 
-        // Indicator Sorting
+        // Genre Filter Section
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant
+            )
+        ) {
+            Column(
+                modifier = Modifier.padding(8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.FilterList,
+                            contentDescription = "Filter",
+                            modifier = Modifier.size(20.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "Filter Genre:",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    // Clear filter button
+                    if (selectedGenre != null) {
+                        TextButton(
+                            onClick = { viewModel.clearGenreFilter() },
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                        ) {
+                            Text("Reset", style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Genre chips
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(horizontal = 4.dp)
+                ) {
+                    items(genreList) { genre ->
+                        FilterChip(
+                            selected = selectedGenre?.mal_id == genre.mal_id,
+                            onClick = {
+                                if (selectedGenre?.mal_id == genre.mal_id) {
+                                    viewModel.clearGenreFilter()
+                                } else {
+                                    viewModel.fetchAnimeByGenre(genre)
+                                }
+                            },
+                            label = {
+                                Text(
+                                    text = genre.name,
+                                    style = MaterialTheme.typography.labelLarge
+                                )
+                            },
+                            leadingIcon = if (selectedGenre?.mal_id == genre.mal_id) {
+                                {
+                                    Icon(
+                                        imageVector = Icons.Default.Clear,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            } else null
+                        )
+                    }
+                }
+
+                // Selected genre indicator
+                if (selectedGenre != null) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Menampilkan: ${selectedGenre!!.name}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        }
+
+        // Sort indicator
         if (searchQuery.isEmpty()) {
             Text(
                 text = if (isAscending) "Urutan: A → Z" else "Urutan: Z → A",
@@ -99,67 +199,105 @@ fun AnimeListScreen(
         }
 
         // Anime List
-        val filteredAndSortedList = viewModel.getFilteredAndSortedAnimeList()
-
-        if (filteredAndSortedList.isEmpty() && searchQuery.isNotEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            if (isLoading) {
                 Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
-                    Text(
-                        text = "Tidak ada hasil",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Coba kata kunci lain",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    CircularProgressIndicator()
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("Memuat data anime...")
                 }
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(bottom = 8.dp)
-            ) {
-                items(filteredAndSortedList) { anime ->
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(120.dp)
-                            .clickable { onAnimeClick(anime.mal_id) },
-                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxSize(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // Foto Anime
-                            Image(
-                                painter = rememberAsyncImagePainter(anime.images.jpg.image_url),
-                                contentDescription = anime.title,
-                                modifier = Modifier
-                                    .width(90.dp)
-                                    .fillMaxHeight(),
-                                contentScale = ContentScale.Crop
-                            )
+            } else {
+                val filteredAndSortedList = viewModel.getFilteredAndSortedAnimeList()
 
-                            // Nama Anime
+                if (filteredAndSortedList.isEmpty() && searchQuery.isNotEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
                             Text(
-                                text = anime.title,
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(16.dp),
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
+                                text = "Tidak ada hasil",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Coba kata kunci lain",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                } else if (filteredAndSortedList.isEmpty() && selectedGenre != null) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                text = "Tidak ada anime ditemukan",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            TextButton(onClick = { viewModel.clearGenreFilter() }) {
+                                Text("Reset Filter")
+                            }
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(bottom = 8.dp, top = 4.dp)
+                    ) {
+                        items(filteredAndSortedList) { anime ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(120.dp)
+                                    .clickable { onAnimeClick(anime.mal_id) },
+                                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxSize(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    // Foto Anime
+                                    Image(
+                                        painter = rememberAsyncImagePainter(anime.images.jpg.image_url),
+                                        contentDescription = anime.title,
+                                        modifier = Modifier
+                                            .width(90.dp)
+                                            .fillMaxHeight(),
+                                        contentScale = ContentScale.Crop
+                                    )
+
+                                    // Nama Anime
+                                    Text(
+                                        text = anime.title,
+                                        style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(16.dp),
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
                         }
                     }
                 }
